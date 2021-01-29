@@ -51,6 +51,7 @@ To uninstall:
 sudo systemctl stop hdmon
 sudo systemctl disable hdmon
 sudo hdmon-uninstall
+sudo pip3 uninstall hdmon
 sudo rm /etc/hdmon.yml
 ```
 

@@ -60,16 +60,16 @@ class DiskMonitorService:
         self._scheduler.run()
 
     def _create_spin_down_controllers(self, disk_paths, spin_down_config):
+        strategy_name = spin_down_config["when"]
+        strategy_options = spin_down_config.get("options", {})
         for disk_path in disk_paths:
-            strategy_name = spin_down_config["when"]
-            strategy_options = spin_down_config.get("options", {})
             controller = DiskSpinDownController(
                 disk_path=disk_path,
                 spin_down_strategy=create_spin_down_strategy(
                     strategy_name=strategy_name,
                     options=strategy_options,
                 ),
-                spin_down_actuator=lambda: self._run_shell_command(
+                spin_down_actuator=lambda disk_path=disk_path: self._run_shell_command(
                     command=spin_down_config["command"],
                     env={"disk_path": disk_path},
                 ),
@@ -103,7 +103,7 @@ class DiskMonitorService:
     @staticmethod
     def _run_shell_command(command, env):
         logger.info(
-            'Running "%s" in environment %s',
+            'Running "%s" with environment %s',
             command,
             ", ".join("{}={}".format(key, value) for key, value in env.items()),
         )

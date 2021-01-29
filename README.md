@@ -33,7 +33,7 @@ not that important anymore.
 ## Installation
 
 ```
-sudo pip3 install https://github.com/sekogan/hdmon
+sudo pip3 install git+https://github.com/sekogan/hdmon.git
 sudo hdmon-install
 ```
 

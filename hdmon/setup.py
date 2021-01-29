@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 
 from .lib.logger import LOGGER as logger
 from .main import CONFIG_LOCATIONS
 
 
-SYSTEMD_UNIT_FILE_PATH = "/etc/systemd/system/hdmon.service"
+SYSTEMD_UNIT_FILE_PATH = "/usr/lib/systemd/system/hdmon.service"
 
 SYSTEMD_UNIT_FILE_CONTENT = """\
 [Unit]
 Description=Hard Disk Monitor
 
 [Service]
-ExecStart=/usr/bin/hdmon
+ExecStart={hdmon}
 Restart=always
 
 [Install]
@@ -56,15 +57,32 @@ def create_file_if_not_exists(path, content, mode=0o644):
     logger.info("Done")
 
 
-def main():
+def delete_file_if_exists(path):
+    logger.info('Removing "%s"...', path)
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+    logger.info("Done")
+
+
+def install():
     try:
         create_file_if_not_exists(CONFIG_LOCATIONS[0], DEFAULT_CONFIG)
-        create_file_if_not_exists(SYSTEMD_UNIT_FILE_PATH, SYSTEMD_UNIT_FILE_CONTENT)
+
+        hdmon_path = shutil.which("hdmon")
+        unit_file_content = SYSTEMD_UNIT_FILE_CONTENT.format(hdmon=hdmon_path)
+        create_file_if_not_exists(SYSTEMD_UNIT_FILE_PATH, unit_file_content)
         return 0
     except Exception as error:
         logger.error("%s", error)
         return 1
 
 
-if __name__ == "__main__":
-    exit(main())
+def uninstall():
+    try:
+        delete_file_if_exists(SYSTEMD_UNIT_FILE_PATH)
+        return 0
+    except Exception as error:
+        logger.error("%s", error)
+        return 1

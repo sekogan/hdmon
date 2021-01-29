@@ -40,8 +40,18 @@ sudo hdmon-install
 Edit `/etc/hdmon.yml` to your preference.
 
 ```
+sudo systemctl daemon-reload
 sudo systemctl enable hdmon
 sudo systemctl start hdmon
+```
+
+To uninstall:
+
+```
+sudo systemctl stop hdmon
+sudo systemctl disable hdmon
+sudo hdmon-uninstall
+sudo rm /etc/hdmon.yml
 ```
 
 

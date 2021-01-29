@@ -103,9 +103,9 @@ class DiskMonitorService:
     @staticmethod
     def _run_shell_command(command, env):
         logger.info(
-            'Running "%s" with environment %s',
+            'Running "%s" where %s',
             command,
-            ", ".join("{}={}".format(key, value) for key, value in env.items()),
+            ", ".join("${}={}".format(key, value) for key, value in env.items()),
         )
         try:
             shell.run(command, env)

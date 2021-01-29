@@ -12,5 +12,5 @@ _DEBUG = bool(os.environ.get("DEBUG", False))
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.DEBUG if _DEBUG else logging.INFO,
-    format="%(message)s",
+    format="%(levelname)s: %(message)s",
 )

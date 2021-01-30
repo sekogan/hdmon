@@ -17,17 +17,25 @@ and wakes them up. On the other hand I found that `hdparm -y` command spins down
 my disks without any issues, except that spun down and rotating disks have
 the same status ("standby").
 
-So the idea of hdmon was to write a service that can monitor disk activities
-and spin down the disks without querying their status. Other design goals were:
 
-- rely on well known tools like `hdparm` to spin down disks;
-- periodically run SMART diagnostic tools when a disk is active (TODO);
-- experiment with different strategies to minimize number of spin up/spin down cycles (TODO).
+## Features
+
+- Monitors disk read/write activity.
+- Spins down idle disks.
+- Allows to use well known tools like `hdparm` to spin down disks.
+- Doesn't rely on querying disk status.
 
 Note that unlike `hd-idle` `hdmon` produces some disk activities on its own, by writing
 messages to the system journal and executing shell commands. But it seems like everybody
-has system partitions on SSDs these days, so being completely silent might be
+has system partitions on SSDs these days, so being completely "silent" might be
 not that important anymore.
+
+
+## TODO
+
+- Periodically run SMART diagnostic tool for active disks.
+- Experiment with different strategies to minimize number of spin up/spin down cycles.
+- Detect added/removed disks (service restart is required in current implementation).
 
 
 ## Installation

@@ -32,6 +32,7 @@ class Scheduler:
             fire_time=time.monotonic() + delay, timer_id=timer_id, callback=callback
         )
         heapq.heappush(self._queue, timer)
+        self._timer_by_id[timer_id] = timer
         return timer_id
 
     def clear_timer(self, timer_id: TimerId):
@@ -50,6 +51,7 @@ class Scheduler:
                     break
                 if timer.deleted:
                     continue
+            self._timer_by_id.pop(timer.timer_id)
             timer.callback()
 
     def stop(self):

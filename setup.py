@@ -8,7 +8,7 @@ with open("README.md") as f:
 
 setup(
     name="hdmon",
-    version="0.1",
+    version="0.2.0",
     packages=find_packages(),
     url="https://github.com/sekogan/hdmon",
     license="GPL-3.0",

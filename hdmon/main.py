@@ -39,6 +39,8 @@ def load_config(path):
 
 class DiskMonitorService:
     def __init__(self, config):
+        logger.debug("Debug mode is ON")
+
         self._scheduler = Scheduler()
         self._monitor = DiskActivityMonitor(scheduler=self._scheduler)
 

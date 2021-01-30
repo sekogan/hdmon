@@ -22,12 +22,14 @@ class DiskSpinDownController(DiskActivityObserver):
 
     @log_exceptions
     def on_disk_active(self):
+        logger.debug("%s is active", self._disk_path)
         if self._timer_id is not None:
             self._scheduler.clear_timer(self._timer_id)
             self._timer_id = None
 
     @log_exceptions
     def on_disk_idle(self):
+        logger.debug("%s is idle", self._disk_path)
         delay = self._spin_down_strategy.get_spin_down_delay()
         self._timer_id = self._scheduler.set_timer(delay, self._on_timer)
 

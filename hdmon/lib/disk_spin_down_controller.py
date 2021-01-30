@@ -35,5 +35,6 @@ class DiskSpinDownController(DiskActivityObserver):
 
     @log_exceptions
     def _on_timer(self):
+        self._timer_id = None
         logger.info("Spinning down %s", self._disk_path)
         self._spin_down_actuator()

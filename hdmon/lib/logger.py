@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import traceback
 
 
 LOGGER = logging.getLogger()
@@ -17,8 +18,8 @@ logging.basicConfig(
 
 
 def log_current_exception():
-    _cls, error, traceback = sys.exc_info()
     if _DEBUG:
         LOGGER.error("%s", traceback.format_exc())
     else:
+        _cls, error, _traceback = sys.exc_info()
         LOGGER.error("%s", str(error))

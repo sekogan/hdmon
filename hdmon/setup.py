@@ -3,7 +3,7 @@
 import os
 import shutil
 
-from .lib.logger import LOGGER as logger
+from .lib.logger import LOGGER as logger, log_current_exception
 from .main import CONFIG_LOCATIONS
 
 
@@ -74,8 +74,8 @@ def install():
         unit_file_content = SYSTEMD_UNIT_FILE_CONTENT.format(hdmon=hdmon_path)
         create_file_if_not_exists(SYSTEMD_UNIT_FILE_PATH, unit_file_content)
         return 0
-    except Exception as error:
-        logger.error("%s", error)
+    except Exception:
+        log_current_exception()
         return 1
 
 
@@ -83,6 +83,6 @@ def uninstall():
     try:
         delete_file_if_exists(SYSTEMD_UNIT_FILE_PATH)
         return 0
-    except Exception as error:
-        logger.error("%s", error)
+    except Exception:
+        log_current_exception()
         return 1

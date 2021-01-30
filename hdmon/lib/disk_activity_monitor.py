@@ -5,7 +5,7 @@ import collections
 import os
 
 from .disk_stats import iter_disk_stats, DiskStat
-from .error_handling import no_exceptions
+from .error_handling import log_exceptions
 from .scheduler import Scheduler
 
 
@@ -42,7 +42,7 @@ class DiskActivityMonitor:
     def add_observer(self, disk_path: str, observer: DiskActivityObserver):
         self._observers[os.path.basename(disk_path)].append(observer)
 
-    @no_exceptions
+    @log_exceptions
     def _on_timer(self):
         for current_stat in iter_disk_stats():
             disk_state = self._disk_state.get(current_stat.device_name)

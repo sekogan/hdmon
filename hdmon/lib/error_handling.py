@@ -1,6 +1,6 @@
 import functools
 
-from .logger import LOGGER as logger
+from .logger import log_current_exception
 
 
 class Error(Exception):
@@ -15,12 +15,12 @@ class UsageError(Error):
     pass
 
 
-def no_exceptions(func):
+def log_exceptions(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception as error:
-            logger.error("%s", str(error))
+        except Exception:
+            log_current_exception()
 
     return wrapper

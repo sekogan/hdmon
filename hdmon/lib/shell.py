@@ -4,7 +4,7 @@ import subprocess
 from .error_handling import Error
 
 
-_TIMEOUT = 5 * 60  # 5 minutes
+_TIMEOUT: float = 5 * 60  # 5 minutes
 
 
 class ShellError(Error):
@@ -22,7 +22,7 @@ class ExitCodeError(ShellError):
         self.exit_code = exit_code
 
 
-def run(command: str, env: Dict[str, str]):
+def run(command: str, env: Dict[str, str], timeout=_TIMEOUT):
     try:
         subprocess.run(
             command,
@@ -30,7 +30,7 @@ def run(command: str, env: Dict[str, str]):
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=_TIMEOUT,
+            timeout=timeout,
             check=True,
         )
     except subprocess.TimeoutExpired as error:

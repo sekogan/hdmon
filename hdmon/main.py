@@ -15,7 +15,7 @@ from .lib.disk_activity_monitor import DiskActivityMonitor
 from .lib.disk_spin_down_controller import DiskSpinDownController
 from .lib.disk_spin_down_strategy import create as create_spin_down_strategy
 from .lib.error_handling import Error, ConfigurationError, UsageError
-from .lib.logger import LOGGER as logger
+from .lib.logger import LOGGER as logger, log_current_exception
 from .lib.scheduler import Scheduler
 
 
@@ -149,8 +149,8 @@ def main():
 
         DiskMonitorService(config).run()
         return 0
-    except Error as error:
-        logger.error("%s", error)
+    except Error:
+        log_current_exception()
         return 1
 
 

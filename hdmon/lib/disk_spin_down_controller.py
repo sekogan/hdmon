@@ -1,6 +1,6 @@
 from .disk_activity_monitor import DiskActivityObserver
 from .disk_spin_down_strategy import DiskSpinDownStrategy
-from .error_handling import no_exceptions
+from .error_handling import log_exceptions
 from .logger import LOGGER as logger
 from .scheduler import Scheduler
 
@@ -20,18 +20,18 @@ class DiskSpinDownController(DiskActivityObserver):
         self._scheduler = scheduler
         self._timer_id = None
 
-    @no_exceptions
+    @log_exceptions
     def on_disk_active(self):
         if self._timer_id is not None:
             self._scheduler.clear_timer(self._timer_id)
             self._timer_id = None
 
-    @no_exceptions
+    @log_exceptions
     def on_disk_idle(self):
         delay = self._spin_down_strategy.get_spin_down_delay()
         self._timer_id = self._scheduler.set_timer(delay, self._on_timer)
 
-    @no_exceptions
+    @log_exceptions
     def _on_timer(self):
         logger.info("Spinning down %s", self._disk_path)
         self._spin_down_actuator()

@@ -47,3 +47,7 @@ class FileSystemLibTestCase(unittest.TestCase):
                 for path in hdmon.lib.filesystem.find("dev/sda")
             )
             self.assertCountEqual(["dev/sda"], paths)
+
+
+if __name__ == "__main__":
+    unittest.main()

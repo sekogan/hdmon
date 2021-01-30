@@ -4,7 +4,7 @@ from typing import Dict, List
 import collections
 import os
 
-from .disk_stats import iter_disk_stats, DiskStat
+from .disk_stats import iter_disk_stats, DiskCounters
 from .error_handling import log_exceptions
 from .scheduler import Scheduler
 
@@ -26,7 +26,7 @@ _ObserverList = List[DiskActivityObserver]
 
 @dataclass
 class _DiskState:
-    last_stat: DiskStat
+    last_counters: DiskCounters
     is_idle: bool = False
 
 
@@ -44,18 +44,20 @@ class DiskActivityMonitor:
 
     @log_exceptions
     def _on_timer(self):
-        for current_stat in iter_disk_stats():
-            disk_state = self._disk_state.get(current_stat.device_name)
+        for current_counters in iter_disk_stats():
+            disk_state = self._disk_state.get(current_counters.device_name)
             if disk_state is None:
-                self._disk_state[current_stat.device_name] = _DiskState(current_stat)
+                self._disk_state[current_counters.device_name] = _DiskState(
+                    current_counters
+                )
                 continue
             was_idle = disk_state.is_idle
-            is_idle = self._is_idle(disk_state.last_stat, current_stat)
-            disk_state.last_stat = current_stat
+            is_idle = self._is_idle(disk_state.last_counters, current_counters)
+            disk_state.last_counters = current_counters
             disk_state.is_idle = is_idle
             if was_idle == is_idle:
                 continue
-            for observer in self._observers.get(current_stat.device_name, []):
+            for observer in self._observers.get(current_counters.device_name, []):
                 if is_idle:
                     observer.on_disk_idle()
                 else:
@@ -66,8 +68,8 @@ class DiskActivityMonitor:
         self._scheduler.set_timer(delay, self._on_timer)
 
     @staticmethod
-    def _is_idle(last_stat: DiskStat, current_stat: DiskStat) -> bool:
+    def _is_idle(last_counters: DiskCounters, current_counters: DiskCounters) -> bool:
         return (
-            last_stat.sectors_read == current_stat.sectors_read
-            and last_stat.sectors_written == current_stat.sectors_written
+            last_counters.sectors_read == current_counters.sectors_read
+            and last_counters.sectors_written == current_counters.sectors_written
         )

@@ -4,7 +4,7 @@ from typing import Dict, List, Iterable, Set
 import collections
 import os
 
-from .disk_stats import iter_disk_stats, DiskCounters
+from .disk_stats import iter_disk_stats, DiskCounters, DeviceNameAndCounters
 from .error_handling import log_exceptions
 from .scheduler import Scheduler
 
@@ -65,26 +65,26 @@ class DiskActivityMonitor:
 
     @log_exceptions
     def _on_timer(self):
-        disk_stats = list(iter_disk_stats())
-        self._update_presence_observers(disk_stats)
-        self._update_activity_observers(disk_stats)
         self._set_timer(delay=self._POLLING_INTERVAL)
+        disk_stats = list(iter_disk_stats())
+        self._update_presence_information(disk_stats)
+        self._update_activity_information(disk_stats)
 
-    def _update_presence_observers(self, disk_stats: Iterable[DiskCounters]):
+    def _update_presence_information(self, disk_stats: Iterable[DeviceNameAndCounters]):
         previously_seen_disks = self._seen_disks
         seen_disks: Set[str] = set()
         self._seen_disks = seen_disks
         possibly_changed_disks = set()
-        for disk_counters in disk_stats:
-            seen_disks.add(disk_counters.device_name)
-            disk_state = self._disk_state.get(disk_counters.device_name)
+        for device_name, counters in disk_stats:
+            seen_disks.add(device_name)
+            disk_state = self._disk_state.get(device_name)
             if disk_state is not None:
                 last_counters = disk_state.last_counters
                 if (
-                    last_counters.sectors_read > disk_counters.sectors_read
-                    or last_counters.sectors_written > disk_counters.sectors_written
+                    last_counters.sectors_read > counters.sectors_read
+                    or last_counters.sectors_written > counters.sectors_written
                 ):
-                    possibly_changed_disks.add(disk_counters.device_name)
+                    possibly_changed_disks.add(device_name)
         removed_disks = (previously_seen_disks - seen_disks) | possibly_changed_disks
         added_disks = (seen_disks - previously_seen_disks) | possibly_changed_disks
         if removed_disks:
@@ -96,21 +96,19 @@ class DiskActivityMonitor:
             for observer in self._presence_observers:
                 observer.on_disks_added(added_disks)
 
-    def _update_activity_observers(self, disk_stats: Iterable[DiskCounters]):
-        for current_counters in disk_stats:
-            disk_state = self._disk_state.get(current_counters.device_name)
+    def _update_activity_information(self, disk_stats: Iterable[DeviceNameAndCounters]):
+        for device_name, counters in disk_stats:
+            disk_state = self._disk_state.get(device_name)
             if disk_state is None:
-                self._disk_state[current_counters.device_name] = _DiskState(
-                    current_counters
-                )
+                self._disk_state[device_name] = _DiskState(counters)
                 continue
             was_idle = disk_state.is_idle
-            is_idle = self._is_idle(disk_state.last_counters, current_counters)
-            disk_state.last_counters = current_counters
+            is_idle = self._is_idle(disk_state.last_counters, counters)
+            disk_state.last_counters = counters
             disk_state.is_idle = is_idle
             if was_idle == is_idle:
                 continue
-            observers = self._activity_observers.get(current_counters.device_name, [])
+            observers = self._activity_observers.get(device_name, [])
             for observer in observers:
                 if is_idle:
                     observer.on_disk_idle()

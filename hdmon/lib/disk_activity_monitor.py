@@ -38,8 +38,8 @@ _ActivityObserverMap = Dict[str, _ActivityObserverList]
 
 
 @dataclass
-class _DiskState:
-    last_counters: DiskCounters
+class _Disk:
+    counters: DiskCounters
     is_idle: bool = False
 
 
@@ -50,8 +50,7 @@ class DiskActivityMonitor:
         self._scheduler = scheduler
         self._presence_observers: List[DiskPresenceObserver] = []
         self._activity_observers: _ActivityObserverMap = collections.defaultdict(list)
-        self._seen_disks: Set[str] = set()
-        self._disk_state: Dict[str, _DiskState] = {}
+        self._disks: Dict[str, _Disk] = {}
         self._set_timer(delay=0)
 
     def add_presence_observer(self, observer: DiskPresenceObserver):
@@ -71,25 +70,21 @@ class DiskActivityMonitor:
         self._update_activity_information(disk_stats)
 
     def _update_presence_information(self, disk_stats: Iterable[DeviceNameAndCounters]):
-        previously_seen_disks = self._seen_disks
-        seen_disks: Set[str] = set()
-        self._seen_disks = seen_disks
-        possibly_changed_disks = set()
-        for device_name, counters in disk_stats:
-            seen_disks.add(device_name)
-            disk_state = self._disk_state.get(device_name)
-            if disk_state is not None:
-                last_counters = disk_state.last_counters
-                if (
-                    last_counters.sectors_read > counters.sectors_read
-                    or last_counters.sectors_written > counters.sectors_written
-                ):
-                    possibly_changed_disks.add(device_name)
-        removed_disks = (previously_seen_disks - seen_disks) | possibly_changed_disks
-        added_disks = (seen_disks - previously_seen_disks) | possibly_changed_disks
+        previous_disks = set(self._disks)
+        current_disks = set(device_name for device_name, _counters in disk_stats)
+        possibly_replaced_disks = set(
+            device_name
+            for device_name, counters in disk_stats
+            if (
+                device_name in self._disks
+                and self._is_disk_replaced(self._disks[device_name].counters, counters)
+            )
+        )
+        removed_disks = (previous_disks - current_disks) | possibly_replaced_disks
+        added_disks = (current_disks - previous_disks) | possibly_replaced_disks
         if removed_disks:
             for device_name in removed_disks:
-                del self._disk_state[device_name]
+                del self._disks[device_name]
             for observer in self._presence_observers:
                 observer.on_disks_removed(removed_disks)
         if added_disks:
@@ -98,14 +93,14 @@ class DiskActivityMonitor:
 
     def _update_activity_information(self, disk_stats: Iterable[DeviceNameAndCounters]):
         for device_name, counters in disk_stats:
-            disk_state = self._disk_state.get(device_name)
-            if disk_state is None:
-                self._disk_state[device_name] = _DiskState(counters)
+            disk = self._disks.get(device_name)
+            if disk is None:
+                self._disks[device_name] = _Disk(counters)
                 continue
-            was_idle = disk_state.is_idle
-            is_idle = self._is_idle(disk_state.last_counters, counters)
-            disk_state.last_counters = counters
-            disk_state.is_idle = is_idle
+            was_idle = disk.is_idle
+            is_idle = self._is_disk_idle(disk.counters, counters)
+            disk.counters = counters
+            disk.is_idle = is_idle
             if was_idle == is_idle:
                 continue
             observers = self._activity_observers.get(device_name, [])
@@ -119,8 +114,17 @@ class DiskActivityMonitor:
         self._scheduler.set_timer(delay, self._on_timer)
 
     @staticmethod
-    def _is_idle(last_counters: DiskCounters, current_counters: DiskCounters) -> bool:
+    def _is_disk_replaced(previous: DiskCounters, current: DiskCounters) -> bool:
+        # This heuristic can give false positives because counters are integers
+        # that can overflow on long running systems.
         return (
-            last_counters.sectors_read == current_counters.sectors_read
-            and last_counters.sectors_written == current_counters.sectors_written
+            previous.sectors_read > current.sectors_read
+            or previous.sectors_written > current.sectors_written
+        )
+
+    @staticmethod
+    def _is_disk_idle(previous: DiskCounters, current: DiskCounters) -> bool:
+        return (
+            previous.sectors_read == current.sectors_read
+            and previous.sectors_written == current.sectors_written
         )

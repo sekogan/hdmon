@@ -111,7 +111,7 @@ class DiskMonitoringService(DiskPresenceObserver):
         self, profile_config: Dict[str, Any]
     ) -> Iterator[PluginFactory]:
         for key in profile_config:
-            if key in ["disks", "base"]:
+            if key in ["disks"]:
                 continue
             plugin = getattr(plugins, key, None)
             if plugin is None:

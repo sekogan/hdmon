@@ -18,6 +18,11 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
         self.monitor.on_disks_added([device_name])
         self._disk_counters[device_name] = counters
 
+    def remove_disks(self, device_names):
+        self.monitor.on_disks_removed(device_names)
+        for device_name in device_names:
+            del self._disk_counters[device_name]
+
     def increment_disk_counters(self, device_name, sectors_read=0, sectors_written=0):
         current_counters = self._disk_counters[device_name]
         self._disk_counters[device_name] = DiskCounters(
@@ -197,6 +202,34 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
         self.monitor.add_observer("sdc", sdc_observer)
         sdc_observer.on_disk_active.assert_not_called()
         sdc_observer.on_disk_idle.assert_not_called()
+
+    def test_notifies_observers_when_disk_removed(self):
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+
+        observer = mock.Mock()
+        self.monitor.add_observer("sda", observer)
+
+        observer.reset_mock()
+
+        self.remove_disks(["sda"])
+
+        observer.on_disk_removed.assert_called_once()
+
+    def test_removes_observers_if_disk_removed(self):
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+
+        observer = mock.Mock()
+        self.monitor.add_observer("sda", observer)
+
+        observer.reset_mock()
+
+        self.remove_disks(["sda"])
+
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_disk_active("sda")
+
+        observer.on_disk_idle.assert_not_called()
+        observer.on_disk_active.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -23,9 +23,7 @@ class DiskSpinDownController(DiskActivityObserver):
     @log_exceptions
     def on_disk_active(self):
         logger.debug("%s is active", self._device_name)
-        if self._timer_id is not None:
-            self._scheduler.clear_timer(self._timer_id)
-            self._timer_id = None
+        self._cancel_timer()
 
     @log_exceptions
     def on_disk_idle(self):
@@ -34,7 +32,16 @@ class DiskSpinDownController(DiskActivityObserver):
         self._timer_id = self._scheduler.set_timer(delay, self._on_timer)
 
     @log_exceptions
+    def on_disk_removed(self):
+        self._cancel_timer()
+
+    @log_exceptions
     def _on_timer(self):
         self._timer_id = None
         logger.info("Spinning down %s", self._device_name)
         self._spin_down_actuator()
+
+    def _cancel_timer(self):
+        if self._timer_id is not None:
+            self._scheduler.clear_timer(self._timer_id)
+            self._timer_id = None

@@ -20,6 +20,11 @@ class DiskActivityObserver(ABC):
         """Shouldn't raise exceptions"""
         raise NotImplementedError()
 
+    @abstractmethod
+    def on_disk_removed(self):
+        """Shouldn't raise exceptions"""
+        raise NotImplementedError()
+
 
 _ActivityObserverList = List[DiskActivityObserver]
 _ActivityObserverMap = Dict[str, _ActivityObserverList]
@@ -49,8 +54,10 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
     @log_exceptions
     def on_disks_removed(self, device_names: Iterable[str]):
         for device_name in device_names:
-            del self._disks[device_name]
-            self._observers.pop(device_name, None)
+            self._disks.pop(device_name, None)
+            observers = self._observers.pop(device_name, [])
+            for observer in observers:
+                observer.on_disk_removed()
 
     @log_exceptions
     def on_disk_stats_updated(self, disk_stats: Iterable[DeviceNameAndCounters]):

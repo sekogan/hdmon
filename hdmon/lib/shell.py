@@ -1,28 +1,18 @@
 from typing import Dict
 import subprocess
 
-from .error_handling import Error
+from .logger import LOGGER as logger
 
 
 _TIMEOUT: float = 5 * 60  # 5 minutes
 
 
-class ShellError(Error):
-    def __init__(self, command_output):
-        self.command_output = command_output
-
-
-class TimeoutError(ShellError):
-    pass
-
-
-class ExitCodeError(ShellError):
-    def __init__(self, exit_code, command_output):
-        super(ExitCodeError, self).__init__(command_output)
-        self.exit_code = exit_code
-
-
 def run(command: str, env: Dict[str, str], timeout=_TIMEOUT):
+    logger.info(
+        'Running "%s" where %s',
+        command,
+        ", ".join("${}={}".format(key, value) for key, value in env.items()),
+    )
     try:
         subprocess.run(
             command,
@@ -34,6 +24,15 @@ def run(command: str, env: Dict[str, str], timeout=_TIMEOUT):
             check=True,
         )
     except subprocess.TimeoutExpired as error:
-        raise TimeoutError(error.stdout)
+        logger.error(
+            'Timeout while running command "%s", command output:\n%s',
+            command,
+            error.stdout,
+        )
     except subprocess.CalledProcessError as error:
-        raise ExitCodeError(error.returncode, error.stdout)
+        logger.error(
+            'Command "%s" failed with exit code %d, command output:\n%s',
+            command,
+            error.returncode,
+            error.stdout,
+        )

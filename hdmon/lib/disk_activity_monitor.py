@@ -4,9 +4,10 @@ from typing import Dict, List, Iterable
 import collections
 
 from .disk_presence_monitor import DiskPresenceObserver
-from .disk_stats_monitor import DiskStatsObserver
 from .disk_stats import DiskCounters, DeviceNameAndCounters
+from .disk_stats_monitor import DiskStatsObserver
 from .error_handling import log_exceptions
+from .logger import LOGGER as logger
 
 
 class DiskActivityObserver(ABC):
@@ -66,12 +67,16 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
             if disk is None:
                 self._disks[device_name] = _Disk(counters=counters, is_idle=False)
                 continue
+
             was_idle = disk.is_idle
             is_idle = self._is_disk_idle(disk.counters, counters)
             disk.counters = counters
             disk.is_idle = is_idle
             if was_idle == is_idle:
                 continue
+
+            logger.debug("%s is %s", device_name, "idle" if is_idle else "active")
+
             observers = self._observers.get(device_name, [])
             for observer in observers:
                 self._notify(observer, is_idle)

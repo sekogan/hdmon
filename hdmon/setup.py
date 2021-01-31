@@ -35,12 +35,10 @@ profiles:
     # - /dev/sd?
     # - /dev/disk/by-label/label
 
-  spin_down:
-    # This section defines when and how spin down idle disks
-    when: idle
-    options:
-      delay: 2h
-    command: /usr/sbin/hdparm -y $disk_path
+  once_idle:
+    # Runs a command if a disk is idle for specified amount of time.
+    delay: 2h
+    run: /usr/sbin/hdparm -y $disk_path
 """
 
 

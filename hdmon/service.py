@@ -6,20 +6,19 @@ Disk monitoring and power management service
 
 
 from dataclasses import dataclass
-from typing import Iterator, List, Iterable, Any, Dict, Generator
+from typing import Iterator, List, Iterable, Iterator, Any, Dict
 import argparse
 import os
 import yaml
 
-from .lib import shell
+from . import plugins
 from .lib.disk_activity_monitor import DiskActivityMonitor
 from .lib.disk_presence_monitor import DiskPresenceMonitor, DiskPresenceObserver
-from .lib.disk_spin_down_controller import DiskSpinDownController
-from .lib.disk_spin_down_strategy import create as create_spin_down_strategy
 from .lib.disk_stats_monitor import DiskStatsMonitor
-from .lib.error_handling import Error, ConfigurationError, UsageError, log_exceptions
+from .lib.error_handling import Error, UsageError, log_exceptions
 from .lib.logger import LOGGER as logger, log_current_exception
 from .lib.scheduler import Scheduler
+from .plugins.base import PluginFactory
 
 
 CONFIG_PATH = "/etc/hdmon.yml"
@@ -38,12 +37,18 @@ def load_config(path):
         return yaml.safe_load(fh)
 
 
+@dataclass(frozen=True)
+class _Profile:
+    profile_id: int
+    disk_patterns: List[str]
+    plugin_factories: List[PluginFactory]
+
+
 @dataclass
 class _MonitoredDisk:
     device_name: str  # sda
     disk_path: str  # /dev/sda
-    profile_id: int
-    profile: Dict[str, Any]
+    profile: _Profile
 
 
 class DiskMonitoringService(DiskPresenceObserver):
@@ -62,7 +67,10 @@ class DiskMonitoringService(DiskPresenceObserver):
         self._disk_presence_monitor.add_observer(self)
         self._disk_presence_monitor.add_observer(self._disk_activity_monitor)
 
-        self._profiles = config.get("profiles", [])
+        self._profiles = [
+            self._create_profile(profile_id=index + 1, profile_config=profile_config)
+            for index, profile_config in enumerate(config.get("profiles", []))
+        ]
         if not self._profiles:
             logger.warning("No profiles in configuration file, nothing to do")
 
@@ -86,59 +94,44 @@ class DiskMonitoringService(DiskPresenceObserver):
         pass
 
     def _start_disk_monitoring(self, disk: _MonitoredDisk):
-        self._create_spin_down_controller(disk)
+        for factory in disk.profile.plugin_factories:
+            plugin = factory.create_plugin(disk.device_name, disk.disk_path)
+            self._disk_activity_monitor.add_observer(disk.device_name, plugin)
 
-    def _create_spin_down_controller(self, disk: _MonitoredDisk):
-        spin_down_config = disk.profile.get("spin_down")
-        if spin_down_config is None:
-            logger.warning(
-                "No spin down strategy found for disk %s in profile %d",
-                disk.device_name,
-                disk.profile_id,
-            )
-            return
-
-        strategy_name = spin_down_config["when"]
-        strategy_options = spin_down_config.get("options", {})
-        controller = DiskSpinDownController(
-            device_name=disk.device_name,
-            spin_down_strategy=create_spin_down_strategy(
-                strategy_name=strategy_name,
-                options=strategy_options,
-            ),
-            spin_down_actuator=lambda: self._run_shell_command(
-                command=spin_down_config["command"],
-                env={"disk_path": disk.disk_path},
-            ),
-            scheduler=self._scheduler,
-        )
-        self._disk_activity_monitor.add_observer(disk.device_name, controller)
-        logger.info(
-            "Disk %s will be spun down when %s (%s)",
-            disk.device_name,
-            strategy_name,
-            ", ".join(
-                "{}={}".format(key, value) for key, value in strategy_options.items()
-            )
-            if strategy_options
-            else "-",
+    def _create_profile(
+        self, profile_id: int, profile_config: Dict[str, Any]
+    ) -> _Profile:
+        return _Profile(
+            profile_id=profile_id,
+            disk_patterns=profile_config["disks"] or [],
+            plugin_factories=list(self._create_plugin_factories(profile_config)),
         )
 
-    def _find_monitored_disks(self) -> Generator[_MonitoredDisk, None, None]:
-        for index, profile in enumerate(self._profiles):
-            profile_id = index + 1
+    def _create_plugin_factories(
+        self, profile_config: Dict[str, Any]
+    ) -> Iterator[PluginFactory]:
+        for key in profile_config:
+            if key in ["disks", "base"]:
+                continue
+            plugin = getattr(plugins, key, None)
+            if plugin is None:
+                logger.warning("Unknown plugin: %s, skipping", key)
+                continue
+            yield plugin.Factory(scheduler=self._scheduler, config=profile_config[key])
+
+    def _find_monitored_disks(self) -> Iterator[_MonitoredDisk]:
+        for profile in self._profiles:
             disks_found = False
-            for disk_path in self._find_disk_paths(profile["disks"] or []):
+            for disk_path in self._find_disk_paths(profile.disk_patterns):
                 disks_found = True
                 yield _MonitoredDisk(
                     device_name=os.path.basename(disk_path),
                     disk_path=disk_path,
-                    profile_id=profile_id,
                     profile=profile,
                 )
 
             if not disks_found:
-                logger.warning("No disks found from profile %d", profile_id)
+                logger.warning("No disks found from profile %d", profile.profile_id)
 
     @staticmethod
     def _find_disk_paths(patterns: List[str]) -> Iterator[str]:
@@ -154,29 +147,6 @@ class DiskMonitoringService(DiskPresenceObserver):
                     )
                     continue
                 yield str(path)
-
-    @staticmethod
-    def _run_shell_command(command, env):
-        logger.info(
-            'Running "%s" where %s',
-            command,
-            ", ".join("${}={}".format(key, value) for key, value in env.items()),
-        )
-        try:
-            shell.run(command, env)
-        except shell.TimeoutError as error:
-            logger.error(
-                'Timeout while running command "%s", command output:\n%s',
-                command,
-                error.command_output,
-            )
-        except shell.ExitCodeError as error:
-            logger.error(
-                'Command "%s" failed with exit code %d, command output:\n%s',
-                command,
-                error.exit_code,
-                error.command_output,
-            )
 
 
 def main():

@@ -22,9 +22,7 @@ from .lib.logger import LOGGER as logger, log_current_exception
 from .lib.scheduler import Scheduler
 
 
-CONFIG_LOCATIONS = [
-    "/etc/hdmon.yml",
-]
+CONFIG_PATH = "/etc/hdmon.yml"
 
 
 def parse_args():
@@ -185,23 +183,9 @@ def main():
     try:
         args = parse_args()
 
-        config_path = args.config
-        if config_path is not None:
-            if not os.path.isfile(config_path):
-                raise UsageError(f'Cannot find configuration file "{config_path}"')
-        else:
-            for location in CONFIG_LOCATIONS:
-                if os.path.isfile(location):
-                    config_path = location
-                    break
-
-            if config_path is None:
-                locations = ", ".join(
-                    '"{}"'.format(location) for location in CONFIG_LOCATIONS
-                )
-                raise ConfigurationError(
-                    f"Cannot find configuration file in known locations: {locations}"
-                )
+        config_path = args.config or CONFIG_PATH
+        if not os.path.isfile(config_path):
+            raise UsageError(f'Cannot find configuration file "{config_path}"')
         config = load_config(config_path)
 
         DiskMonitoringService(config).run()

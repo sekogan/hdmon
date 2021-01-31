@@ -4,7 +4,7 @@ import os
 import shutil
 
 from .lib.logger import LOGGER as logger, log_current_exception
-from .service import CONFIG_LOCATIONS
+from .service import CONFIG_PATH
 
 
 SYSTEMD_UNIT_FILE_PATH = "/usr/lib/systemd/system/hdmon.service"
@@ -68,7 +68,7 @@ def delete_file_if_exists(path):
 
 def install():
     try:
-        create_file_if_not_exists(CONFIG_LOCATIONS[0], DEFAULT_CONFIG)
+        create_file_if_not_exists(CONFIG_PATH, DEFAULT_CONFIG)
 
         hdmon_path = shutil.which("hdmon")
         unit_file_content = SYSTEMD_UNIT_FILE_CONTENT.format(hdmon=hdmon_path)

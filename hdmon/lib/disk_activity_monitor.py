@@ -46,6 +46,8 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
         self._observers[device_name].append(observer)
         disk = self._disks.get(device_name)
         if disk is not None:
+            if len(self._observers[device_name]) == 1:
+                self._log_disk_state(device_name, disk.is_idle)
             self._notify(observer, disk.is_idle)
 
     @log_exceptions
@@ -75,9 +77,11 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
             if was_idle == is_idle:
                 continue
 
-            logger.debug("%s is %s", device_name, "idle" if is_idle else "active")
-
             observers = self._observers.get(device_name, [])
+
+            if observers:
+                self._log_disk_state(device_name, is_idle)
+
             for observer in observers:
                 self._notify(observer, is_idle)
 
@@ -87,6 +91,10 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
             observer.on_disk_idle()
         else:
             observer.on_disk_active()
+
+    @staticmethod
+    def _log_disk_state(device_name, is_idle):
+        logger.debug("%s is %s", device_name, "idle" if is_idle else "active")
 
     @staticmethod
     def _is_disk_idle(previous: DiskCounters, current: DiskCounters) -> bool:

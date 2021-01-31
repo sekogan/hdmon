@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Iterable, Set
+from typing import Dict, List, Iterable, Optional
 import collections
 import os
 
@@ -11,12 +11,12 @@ from .scheduler import Scheduler
 
 class DiskPresenceObserver(ABC):
     @abstractmethod
-    def on_disks_added(self, disk_paths: Iterable[str]):
+    def on_disks_added(self, device_names: Iterable[str]):
         """Shouldn't raise exceptions"""
         raise NotImplementedError()
 
     @abstractmethod
-    def on_disks_removed(self, disk_paths: Iterable[str]):
+    def on_disks_removed(self, device_names: Iterable[str]):
         """Shouldn't raise exceptions"""
         raise NotImplementedError()
 
@@ -40,17 +40,17 @@ _ActivityObserverMap = Dict[str, _ActivityObserverList]
 @dataclass
 class _Disk:
     counters: DiskCounters
-    is_idle: bool = False
+    is_idle: bool
 
 
-class DiskActivityMonitor:
+class DiskActivityMonitor(DiskPresenceObserver):
     _POLLING_INTERVAL = 1 * 60  # 1 minute
 
     def __init__(self, *, scheduler: Scheduler):
         self._scheduler = scheduler
-        self._presence_observers: List[DiskPresenceObserver] = []
+        self._presence_observers: List[DiskPresenceObserver] = [self]
         self._activity_observers: _ActivityObserverMap = collections.defaultdict(list)
-        self._disks: Dict[str, _Disk] = {}
+        self._disks: Dict[str, Optional[_Disk]] = {}
         self._set_timer(delay=0)
 
     def add_presence_observer(self, observer: DiskPresenceObserver):
@@ -83,19 +83,25 @@ class DiskActivityMonitor:
         removed_disks = (previous_disks - current_disks) | possibly_replaced_disks
         added_disks = (current_disks - previous_disks) | possibly_replaced_disks
         if removed_disks:
-            for device_name in removed_disks:
-                del self._disks[device_name]
             for observer in self._presence_observers:
                 observer.on_disks_removed(removed_disks)
         if added_disks:
             for observer in self._presence_observers:
                 observer.on_disks_added(added_disks)
 
+    def on_disks_added(self, device_names):
+        for device_name in device_names:
+            self._disks[device_name] = None
+
+    def on_disks_removed(self, device_names):
+        for device_name in device_names:
+            del self._disks[device_name]
+
     def _update_activity_information(self, disk_stats: Iterable[DeviceNameAndCounters]):
         for device_name, counters in disk_stats:
-            disk = self._disks.get(device_name)
+            disk = self._disks[device_name]
             if disk is None:
-                self._disks[device_name] = _Disk(counters)
+                self._disks[device_name] = _Disk(counters=counters, is_idle=False)
                 continue
             was_idle = disk.is_idle
             is_idle = self._is_disk_idle(disk.counters, counters)

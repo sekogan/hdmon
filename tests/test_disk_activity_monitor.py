@@ -48,30 +48,43 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.assert_not_called()
 
-    def test_detects_idle_disk_once_at_startup(self):
+    def test_does_not_notify_activity_observers_on_first_timer(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
         observer = mock.Mock()
         monitor.add_activity_observer("/dev/sda", observer)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         monitor._on_timer()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.assert_not_called()
 
+    def test_detects_idle_disk_on_second_timer(self):
+        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        observer = mock.Mock()
+        monitor.add_activity_observer("/dev/sda", observer)
+
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
+        monitor._on_timer()
         monitor._on_timer()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.called_once()
 
+    def test_detects_active_disk_on_second_timer(self):
+        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        observer = mock.Mock()
+        monitor.add_activity_observer("/dev/sda", observer)
+
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         monitor._on_timer()
+        self.increment_disk_counters(device_name="sda", sectors_read=1)
         monitor._on_timer()
-        monitor._on_timer()
-        observer.on_disk_active.assert_not_called()
-        observer.on_disk_idle.called_once()
+        observer.on_disk_active.called_once()
+        observer.on_disk_idle.assert_not_called()
 
     def test_detects_idle_disk_once(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         self.make_disk_active(device_name="sda", monitor=monitor)
 
         observer = mock.Mock()
@@ -90,7 +103,7 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
     def test_detects_active_disk_by_reads(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         self.make_all_disks_idle(monitor)
 
         self.increment_disk_counters(device_name="sda", sectors_read=1)
@@ -104,7 +117,7 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
     def test_detects_active_disk_by_writes(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         self.make_all_disks_idle(monitor)
 
         self.increment_disk_counters(device_name="sda", sectors_written=1)
@@ -115,10 +128,33 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
         observer.on_disk_active.assert_called_once()
         observer.on_disk_idle.assert_not_called()
 
+    def test_detects_active_disk_once(self):
+        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
+        self.make_all_disks_idle(monitor)
+
+        self.increment_disk_counters(device_name="sda", sectors_read=1)
+
+        observer = mock.Mock()
+        monitor.add_activity_observer("/dev/sda", observer)
+        monitor._on_timer()
+        observer.on_disk_active.assert_called_once()
+        observer.on_disk_idle.assert_not_called()
+
+        self.increment_disk_counters(device_name="sda", sectors_read=1)
+        monitor._on_timer()
+        self.increment_disk_counters(device_name="sda", sectors_read=1)
+        monitor._on_timer()
+        self.increment_disk_counters(device_name="sda", sectors_read=1)
+        monitor._on_timer()
+        observer.on_disk_active.assert_called_once()
+        observer.on_disk_idle.assert_not_called()
+
     def test_notifies_multiple_disk_observers(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
         self.make_all_disks_idle(monitor)
 
         self.increment_disk_counters(device_name="sda", sectors_written=1)
@@ -134,8 +170,8 @@ class DiskActivityMonitorTestCase(unittest.TestCase):
     def test_notifies_specific_disk_observers(self):
         monitor = DiskActivityMonitor(scheduler=self.scheduler)
 
-        self.set_disk_counters(device_name="sda", sectors_read=100, sectors_written=100)
-        self.set_disk_counters(device_name="sdb", sectors_read=100, sectors_written=100)
+        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
+        self.set_disk_counters(device_name="sdb", sectors_read=0, sectors_written=0)
         self.make_all_disks_idle(monitor)
 
         self.increment_disk_counters(device_name="sda", sectors_written=1)

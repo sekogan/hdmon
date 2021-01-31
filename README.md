@@ -7,7 +7,7 @@ Monitors hard disk activities and spins down idle disks.
 
 ## Motivation
 
-[hd-idle](http://hd-idle.sourceforge.net/) is excellent but it doesn't work well
+[hd-idle](http://hd-idle.sourceforge.net/) is an excellent tool but it doesn't work well
 on my system that has several HDDs in USB enclosures. These enclosures apparently
 spin up disks almost immediately after they have been spun down. Not sure, but this is
 the most plausible explanation that I came up with. Another problem is that if a disk
@@ -22,20 +22,23 @@ the same status ("standby").
 
 - Monitors disk read/write activity.
 - Spins down idle disks.
+- Detects added/removed disks.
 - Allows to use well known tools like `hdparm` to spin down disks.
 - Doesn't rely on querying disk status.
 
-Note that unlike `hd-idle` `hdmon` produces some disk activities on its own, by writing
-messages to the system journal and executing shell commands. But it seems like everybody
-has system partitions on SSDs these days, so being completely "silent" might be
-not that important anymore.
+
+## Limitations
+
+- Does produce disk activities on system partition by writing messages to the system journal
+  and executing shell commands. But it seems like everybody has system partitions on SSDs
+  these days, so being completely "silent" might be not that important anymore.
 
 
 ## TODO
 
+- Make "spin down" and "check up" functions generic.
 - Periodically run SMART diagnostic tool for active disks.
 - Experiment with different strategies to minimize number of spin up/spin down cycles.
-- Detect added/removed disks (service restart is required in current implementation).
 
 
 ## Installation

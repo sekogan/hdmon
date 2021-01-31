@@ -9,12 +9,12 @@ class DiskSpinDownController(DiskActivityObserver):
     def __init__(
         self,
         *,
-        disk_path: str,
+        device_name: str,
         spin_down_strategy: DiskSpinDownStrategy,
         spin_down_actuator,
         scheduler: Scheduler,
     ):
-        self._disk_path = disk_path
+        self._device_name = device_name
         self._spin_down_strategy = spin_down_strategy
         self._spin_down_actuator = spin_down_actuator
         self._scheduler = scheduler
@@ -22,19 +22,19 @@ class DiskSpinDownController(DiskActivityObserver):
 
     @log_exceptions
     def on_disk_active(self):
-        logger.debug("%s is active", self._disk_path)
+        logger.debug("%s is active", self._device_name)
         if self._timer_id is not None:
             self._scheduler.clear_timer(self._timer_id)
             self._timer_id = None
 
     @log_exceptions
     def on_disk_idle(self):
-        logger.debug("%s is idle", self._disk_path)
+        logger.debug("%s is idle", self._device_name)
         delay = self._spin_down_strategy.get_spin_down_delay()
         self._timer_id = self._scheduler.set_timer(delay, self._on_timer)
 
     @log_exceptions
     def _on_timer(self):
         self._timer_id = None
-        logger.info("Spinning down %s", self._disk_path)
+        logger.info("Spinning down %s", self._device_name)
         self._spin_down_actuator()

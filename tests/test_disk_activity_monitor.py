@@ -8,181 +8,195 @@ from hdmon.lib.disk_stats import DiskCounters
 
 class DiskActivityMonitorTestCase(unittest.TestCase):
     def setUp(self):
-        self.disk_counters: Dict[str, DiskCounters] = {}
-        patcher = mock.patch(
-            "hdmon.lib.disk_activity_monitor.iter_disk_stats",
-            side_effect=lambda: self.disk_counters.items(),
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.scheduler = mock.Mock()
+        self._disk_counters: Dict[str, DiskCounters] = {}
+        self.monitor = DiskActivityMonitor()
 
-    def set_disk_counters(self, device_name, sectors_read=0, sectors_written=0):
-        self.disk_counters[device_name] = DiskCounters(
-            sectors_read=sectors_read, sectors_written=sectors_written
-        )
+    def notify_monitor_about_current_disk_stats(self):
+        self.monitor.on_disk_stats_updated(self._disk_counters.items())
+
+    def add_disk(self, device_name, counters):
+        self.monitor.on_disks_added([device_name])
+        self._disk_counters[device_name] = counters
 
     def increment_disk_counters(self, device_name, sectors_read=0, sectors_written=0):
-        current_counters = self.disk_counters[device_name]
-        self.disk_counters[device_name] = DiskCounters(
+        current_counters = self._disk_counters[device_name]
+        self._disk_counters[device_name] = DiskCounters(
             sectors_read=current_counters.sectors_read + sectors_read,
             sectors_written=current_counters.sectors_written + sectors_written,
         )
 
-    def make_disk_active(self, device_name, monitor):
-        monitor._on_timer()
-        self.increment_disk_counters(device_name, 1, 1)
-        monitor._on_timer()
+    def make_disk_active(self, device_name):
+        self.notify_monitor_about_current_disk_stats()
+        self.increment_disk_counters(device_name, sectors_read=1)
+        self.notify_monitor_about_current_disk_stats()
 
-    def make_all_disks_idle(self, monitor):
-        monitor._on_timer()
-        monitor._on_timer()
+    def make_all_disks_idle(self):
+        self.notify_monitor_about_current_disk_stats()
+        self.notify_monitor_about_current_disk_stats()
 
-    def test_empty_disk_counters(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+    def test_no_disks(self):
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
+        self.monitor.add_observer("sda", observer)
 
-        self.disk_counters = {}
-        self.make_all_disks_idle(monitor)
+        self.make_all_disks_idle()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.assert_not_called()
 
-    def test_does_not_notify_activity_observers_on_first_timer(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+    def test_does_not_notify_activity_observers_on_first_update(self):
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
+        self.monitor.add_observer("sda", observer)
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        monitor._on_timer()
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.assert_not_called()
 
-    def test_detects_idle_disk_on_second_timer(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+    def test_detects_idle_disk_on_second_update(self):
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
+        self.monitor.add_observer("sda", observer)
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        monitor._on_timer()
-        monitor._on_timer()
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.notify_monitor_about_current_disk_stats()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.called_once()
 
-    def test_detects_active_disk_on_second_timer(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+    def test_detects_active_disk_on_second_update(self):
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
+        self.monitor.add_observer("sda", observer)
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        monitor._on_timer()
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
-        monitor._on_timer()
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.notify_monitor_about_current_disk_stats()
+        self.increment_disk_counters("sda", sectors_read=1)
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.called_once()
         observer.on_disk_idle.assert_not_called()
 
     def test_detects_idle_disk_once(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
-
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.make_disk_active(device_name="sda", monitor=monitor)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_disk_active("sda")
 
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
+        self.monitor.add_observer("sda", observer)
 
-        monitor._on_timer()
+        observer.reset_mock()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.called_once()
 
-        monitor._on_timer()
-        monitor._on_timer()
-        monitor._on_timer()
+        self.notify_monitor_about_current_disk_stats()
+        self.notify_monitor_about_current_disk_stats()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_not_called()
         observer.on_disk_idle.called_once()
 
     def test_detects_active_disk_by_reads(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.make_all_disks_idle(monitor)
-
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
+        self.increment_disk_counters("sda", sectors_read=1)
 
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
-        monitor._on_timer()
+        self.monitor.add_observer("sda", observer)
+        observer.reset_mock()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_called_once()
         observer.on_disk_idle.assert_not_called()
 
     def test_detects_active_disk_by_writes(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.make_all_disks_idle(monitor)
-
-        self.increment_disk_counters(device_name="sda", sectors_written=1)
+        self.increment_disk_counters("sda", sectors_written=1)
 
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
-        monitor._on_timer()
+        self.monitor.add_observer("sda", observer)
+        observer.reset_mock()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_called_once()
         observer.on_disk_idle.assert_not_called()
 
     def test_detects_active_disk_once(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.make_all_disks_idle(monitor)
-
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
+        self.increment_disk_counters("sda", sectors_read=1)
 
         observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer)
-        monitor._on_timer()
+        self.monitor.add_observer("sda", observer)
+        observer.reset_mock()
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_called_once()
         observer.on_disk_idle.assert_not_called()
 
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
-        monitor._on_timer()
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
-        monitor._on_timer()
-        self.increment_disk_counters(device_name="sda", sectors_read=1)
-        monitor._on_timer()
+        self.increment_disk_counters("sda", sectors_read=1)
+        self.notify_monitor_about_current_disk_stats()
+        self.increment_disk_counters("sda", sectors_read=1)
+        self.notify_monitor_about_current_disk_stats()
+        self.increment_disk_counters("sda", sectors_read=1)
+        self.notify_monitor_about_current_disk_stats()
         observer.on_disk_active.assert_called_once()
         observer.on_disk_idle.assert_not_called()
 
     def test_notifies_multiple_disk_observers(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
 
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.make_all_disks_idle(monitor)
-
-        self.increment_disk_counters(device_name="sda", sectors_written=1)
+        self.increment_disk_counters("sda", sectors_written=1)
 
         observer1 = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer1)
+        self.monitor.add_observer("sda", observer1)
+        observer1.reset_mock()
         observer2 = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", observer2)
-        monitor._on_timer()
+        self.monitor.add_observer("sda", observer2)
+        observer2.reset_mock()
+        self.notify_monitor_about_current_disk_stats()
         observer1.on_disk_active.assert_called_once()
         observer2.on_disk_active.assert_called_once()
 
     def test_notifies_specific_disk_observers(self):
-        monitor = DiskActivityMonitor(scheduler=self.scheduler)
-
-        self.set_disk_counters(device_name="sda", sectors_read=0, sectors_written=0)
-        self.set_disk_counters(device_name="sdb", sectors_read=0, sectors_written=0)
-        self.make_all_disks_idle(monitor)
-
-        self.increment_disk_counters(device_name="sda", sectors_written=1)
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.add_disk("sdb", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
 
         sda_observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sda", sda_observer)
+        self.monitor.add_observer("sda", sda_observer)
         sdb_observer = mock.Mock()
-        monitor.add_activity_observer("/dev/sdb", sdb_observer)
-        monitor._on_timer()
+        self.monitor.add_observer("sdb", sdb_observer)
+
+        sda_observer.reset_mock()
+        sdb_observer.reset_mock()
+        self.increment_disk_counters("sda", sectors_written=1)
+        self.notify_monitor_about_current_disk_stats()
         sda_observer.on_disk_active.assert_called_once()
         sdb_observer.on_disk_active.assert_not_called()
+
+        self.increment_disk_counters("sdb", sectors_written=1)
+        self.notify_monitor_about_current_disk_stats()
+        sda_observer.on_disk_active.assert_called_once()
+        sdb_observer.on_disk_active.assert_called_once()
+
+    def test_notifies_new_observers_about_current_disks(self):
+        self.add_disk("sda", DiskCounters(sectors_read=0, sectors_written=0))
+        self.add_disk("sdb", DiskCounters(sectors_read=0, sectors_written=0))
+        self.make_all_disks_idle()
+
+        self.make_disk_active("sdb")
+
+        sda_observer = mock.Mock()
+        self.monitor.add_observer("sda", sda_observer)
+        sda_observer.on_disk_idle.assert_called_once()
+        sda_observer.on_disk_active.assert_not_called()
+
+        sdb_observer = mock.Mock()
+        self.monitor.add_observer("sdb", sdb_observer)
+        sdb_observer.on_disk_active.assert_called_once()
+        sdb_observer.on_disk_idle.assert_not_called()
+
+        sdc_observer = mock.Mock()
+        self.monitor.add_observer("sdc", sdc_observer)
+        sdc_observer.on_disk_active.assert_not_called()
+        sdc_observer.on_disk_idle.assert_not_called()
 
 
 if __name__ == "__main__":

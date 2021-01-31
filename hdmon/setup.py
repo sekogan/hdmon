@@ -4,7 +4,7 @@ import os
 import shutil
 
 from .lib.logger import LOGGER as logger, log_current_exception
-from .main import CONFIG_LOCATIONS
+from .service import CONFIG_LOCATIONS
 
 
 SYSTEMD_UNIT_FILE_PATH = "/usr/lib/systemd/system/hdmon.service"

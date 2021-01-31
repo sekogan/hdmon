@@ -21,7 +21,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "hdmon=hdmon.main:main",
+            "hdmon=hdmon.service:main",
             "hdmon-install=hdmon.setup:install",
             "hdmon-uninstall=hdmon.setup:uninstall",
         ]

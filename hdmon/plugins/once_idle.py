@@ -33,7 +33,7 @@ class OnceIdle(Plugin):
         self._command = config["run"]
         self._timer_id = None
         logger.info(
-            'Once %s idle for %d will run "%s"',
+            'Once %s idle for %s will run "%s"',
             device_name,
             human_readable_delay,
             self._command,

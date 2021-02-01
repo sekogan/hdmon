@@ -54,7 +54,7 @@ class OnceIdle(Plugin):
     @log_exceptions
     def _on_timer(self):
         self._timer_id = None
-        shell.run(self.command, env={"disk_path": self._disk_path})
+        shell.run(self._command, env={"disk_path": self._disk_path})
 
     def _cancel_timer(self):
         if self._timer_id is not None:

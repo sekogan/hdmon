@@ -94,7 +94,7 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
 
     @staticmethod
     def _log_disk_state(device_name, is_idle):
-        logger.debug("%s is %s", device_name, "idle" if is_idle else "active")
+        logger.info("%s is %s", device_name, "idle" if is_idle else "active")
 
     @staticmethod
     def _is_disk_idle(previous: DiskCounters, current: DiskCounters) -> bool:

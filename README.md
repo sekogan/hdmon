@@ -2,8 +2,6 @@
 
 Monitors hard disk activities and spins down idle disks.
 
-**BEWARE. This software is currently being tested. DO NOT USE if this notice is still here.**
-
 
 ## Motivation
 

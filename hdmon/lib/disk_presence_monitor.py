@@ -68,7 +68,7 @@ class DiskPresenceMonitor(DiskStatsObserver):
             for observer in self._observers:
                 observer.on_disks_removed(disks_removed)
         if disks_added:
-            for device_name in disks_removed:
+            for device_name in disks_added:
                 self._log_disk_state(device_name, is_offline=False)
                 # Disk are added to self._disks in _update_counters
             for observer in self._observers:

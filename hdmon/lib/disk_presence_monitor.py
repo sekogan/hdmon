@@ -4,7 +4,6 @@ from typing import Dict, List, Iterable
 from .disk_stats import DiskCounters, DeviceNameAndCounters
 from .disk_stats_monitor import DiskStatsObserver
 from .error_handling import log_exceptions
-from .logger import LOGGER as logger
 
 
 class DiskPresenceObserver(ABC):
@@ -63,14 +62,11 @@ class DiskPresenceMonitor(DiskStatsObserver):
 
         if disks_removed:
             for device_name in disks_removed:
-                self._log_disk_state(device_name, is_offline=True)
                 del self._disks[device_name]
             for observer in self._observers:
                 observer.on_disks_removed(disks_removed)
         if disks_added:
-            for device_name in disks_added:
-                self._log_disk_state(device_name, is_offline=False)
-                # Disk are added to self._disks in _update_counters
+            # Disk are added to self._disks in _update_counters
             for observer in self._observers:
                 observer.on_disks_added(disks_added)
 
@@ -86,7 +82,3 @@ class DiskPresenceMonitor(DiskStatsObserver):
             previous.sectors_read > current.sectors_read
             or previous.sectors_written > current.sectors_written
         )
-
-    @staticmethod
-    def _log_disk_state(device_name, is_offline):
-        logger.info("%s is %s", device_name, "offline" if is_offline else "online")

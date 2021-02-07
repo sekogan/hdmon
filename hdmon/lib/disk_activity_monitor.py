@@ -46,8 +46,8 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
         self._observers[device_name].append(observer)
         disk = self._disks.get(device_name)
         if disk is not None:
-            if len(self._observers[device_name]) == 1:
-                self._log_disk_state(device_name, disk.is_idle)
+            if len(self._observers[device_name]) == 1:  # first observer?
+                self._log_disk_is_idle(device_name, disk.is_idle)
             self._notify(observer, disk.is_idle)
 
     @log_exceptions
@@ -57,10 +57,12 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
     @log_exceptions
     def on_disks_removed(self, device_names: Iterable[str]):
         for device_name in device_names:
-            self._disks.pop(device_name, None)
+            disk = self._disks.pop(device_name, None)
             observers = self._observers.pop(device_name, [])
             for observer in observers:
                 observer.on_disk_removed()
+            if disk and observers:
+                self._log_disk_state(device_name, "offline")
 
     @log_exceptions
     def on_disk_stats_updated(self, disk_stats: Iterable[DeviceNameAndCounters]):
@@ -80,7 +82,7 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
             observers = self._observers.get(device_name, [])
 
             if observers:
-                self._log_disk_state(device_name, is_idle)
+                self._log_disk_is_idle(device_name, is_idle)
 
             for observer in observers:
                 self._notify(observer, is_idle)
@@ -92,9 +94,12 @@ class DiskActivityMonitor(DiskStatsObserver, DiskPresenceObserver):
         else:
             observer.on_disk_active()
 
+    def _log_disk_is_idle(self, device_name, is_idle):
+        self._log_disk_state(device_name, "idle" if is_idle else "busy")
+
     @staticmethod
-    def _log_disk_state(device_name, is_idle):
-        logger.info("%s is %s", device_name, "idle" if is_idle else "active")
+    def _log_disk_state(device_name, state):
+        logger.info("%s is %s", device_name, state)
 
     @staticmethod
     def _is_disk_idle(previous: DiskCounters, current: DiskCounters) -> bool:

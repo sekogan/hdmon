@@ -45,7 +45,7 @@ class OnceIdle(Plugin):
 
     @log_exceptions
     def on_disk_idle(self):
-        self._timer_id = self._scheduler.set_timer(self._delay, self._on_timer)
+        self._set_timer()
 
     @log_exceptions
     def on_disk_removed(self):
@@ -55,6 +55,12 @@ class OnceIdle(Plugin):
     def _on_timer(self):
         self._timer_id = None
         shell.run(self._command, env={"disk_path": self._disk_path})
+        # Set the timer again to turn off the disk if some undetected activity spun it up.
+        self._set_timer()
+
+    def _set_timer(self):
+        assert self._timer_id is None
+        self._timer_id = self._scheduler.set_timer(self._delay, self._on_timer)
 
     def _cancel_timer(self):
         if self._timer_id is not None:
